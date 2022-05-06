@@ -1,5 +1,10 @@
 <template>
     <view>
+        <view class="search-box">
+            <!-- 使用自定义搜索组件 -->
+            <my-search @click="gotoSearch"></my-search>
+        </view>
+        
         <!-- 轮播图区域 -->
         <swiper :indicator-dots="true" :autoplay="true" :interval="3000" :duration="1000" :circular="true">
             <!-- 循环渲染轮播图的item项 -->
@@ -11,6 +16,7 @@
             </swiper-item>
         </swiper>
         
+        <!-- 商品列表 -->
         <view class="scroll-view-container">
           <!-- 左侧的滚动视图区域 -->
           <scroll-view class="left-scroll-view" scroll-y :style="{height: wh + 'px'}">
@@ -91,6 +97,12 @@
                 // 为二级分类列表重新赋值
                 this.cateLevel2 = this.cateList[i].children
                 this.scrollTop = this.scrollTop ? 0 : 1
+            },
+            
+            gotoSearch() {
+                uni.navigateTo({
+                    url: '/subpkg/search/search'
+                })
             }
             
             /*    
@@ -106,6 +118,17 @@
 </script>
 
 <style lang="scss">
+    
+    .search-box {
+        // "吸顶"
+        position: sticky;
+        // "吸顶位置"
+        top: 0;
+        // 提高层级，防止被轮播图覆盖
+        z-index: 999;
+    }
+    
+    
     swiper {
         height: 330rpx;
         
