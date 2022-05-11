@@ -2,10 +2,12 @@
 // #ifndef VUE3
 import Vue from 'vue'
 import App from './App'
-import store from '@/store/store.js'
+import store from './store/store.js'
 
 import { $http } from '@escook/request-miniprogram'
 uni.$http = $http
+import utils from './utils/utils';
+uni.$utils = utils;
 // 配置请求根路径
 $http.baseUrl = 'http://192.168.203.129:8666'
 

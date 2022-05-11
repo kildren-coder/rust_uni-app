@@ -29,14 +29,14 @@
             <view class="cate-lv2" v-for="(item2, i2) in cateLevel2" :key="i2">
                 <view class="cate-lv2-title">--- {{item2.cate.cate_name}} ---</view>
                 <!-- 三级分类 Item 项 -->
-                <view class="cate-lv3-item" v-for="(good, gid) in item2.children" :key="gid" @click="gotoGoodsList(good)">
+                <view class="cate-lv3-item" v-for="(good, gid) in item2.children" :key="gid" @click="gotoGoodsDetail(good)">
                   <view class="thumb">
-                    <image :src="good.image_src"></image>
+                    <image :src="good.goods_small_logo"></image>
                   </view>
                   <view class="info">
-                    <text class="good-name">{{good.sku_name}}</text>
-                    <text class="good-brief">{{good.sku_brief}}</text>
-                    <text class="good-price">￥：{{good.min_price}}</text>
+                    <text class="good-name">{{good.goods_name}}</text>
+                    <text class="good-brief">{{good.goods_brief}}</text>
+                    <text class="good-price">￥：{{good.price}}</text>
                   </view>
                 </view>
             </view>
@@ -46,7 +46,10 @@
 </template>
 
 <script>
+    import badgeMix from '@/mixins/tabbar-badge.js'
     export default {
+        
+        mixins: [badgeMix],
         data() {
             return{
                 swiperList: [],
@@ -85,9 +88,9 @@
                 this.cateLevel2 = res.catelists[0].children
             },
             
-            gotoGoodsList(gid) {
+            gotoGoodsDetail(good) {
                 uni.navigateTo({
-                    url:'/subpkg/goods_list/goods_list?cid=' + good.sku_id
+                    url: '/subpkg/goods_detail/goods_detail?goods_id=' + good.goods_id
                 })
             },
             
@@ -104,14 +107,6 @@
                     url: '/subpkg/search/search'
                 })
             }
-            
-            /*    
-            async getNavList() {
-                const {data: res} = await uni.$http.get('/api/catitems')
-                if (res.status !== 200) return uni.$showMsg()
-                this.navList = res.message
-            }
-            */
         },
 
     }

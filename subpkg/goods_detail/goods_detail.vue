@@ -2,39 +2,41 @@
     <!-- 弹窗 -->
     <page-meta :page-style="'overflow:'+(show?'hidden':'visible')"></page-meta>
     	<view class="container">
-    		<!-- 普通弹窗 -->
-    		<uni-popup ref="popup" type="buttom">
+    		<!-- 普通弹窗  TODO: 禁止滚动穿透-->
+    		<uni-popup ref="popup" type="buttom" @change="popChange">
                 <view class="pop-container">
                     <view class="pop-top">
                         <image :src="pop_image_src[0].img_src" @click="popPreview()"></image>
                         <view class="pop-good">
-                            <text class="pop-good-name">{{goods_info.good.sku_name}}</text>
+                            <text class="pop-good-name">{{goods_info.goods_name}}</text>
                             <text class="pop-good-price" v-if="spec_price != 0">￥{{spec_price}}</text>
                         </view>
                     </view>
                     <view class="pop-prop">
+                        <!-- 选购数量 -->
                         <view class="pop-num">
                             <view class="pop-num-text">数量</view>
-                            <uni-number-box class="numbox" :min="2" :value="good_num" @change="changeNum" />
+                            <uni-number-box class="numbox" :min="1" :max="9999" :value="good_num" @change="changeNum" />
                         </view>
                         <!-- 第一级属性 -->
                         <view class="prop">
                             <view class="pop-prop-name" >{{prop1[0].prop_name}}</view>
                             <view class="pop-prop-list">
-                                <uni-tag :text="item.spec_name" v-for="(item, i) in prop1.slice(1, prop1.length)" :key="i" @click="select(item)"></uni-tag>
+                                <uni-tag :class="item.spec_id == active1 ? 'active' : ''" :text="item.spec_name" v-for="(item, i) in prop1.slice(1, prop1.length)" :key="i" @click="select(item)"></uni-tag>
                             </view>
                         </view>
                         <!-- 第二级属性 -->
                         <view class="prop" v-if="prop2.length != 0">
                             <view class="pop-prop-name" >{{prop2[0].prop_name}}</view>
                             <view class="pop-prop-list">
-                                <uni-tag :text="item.spec_name" v-for="(item, i) in prop2_visit" :key="i" @click="select(item)"></uni-tag>
+                                <uni-tag :class="item.spec_id == active2 ? 'active' : ''" :text="item.spec_name" v-for="(item, i) in prop2_visit" :key="i" @click="select(item)"></uni-tag>
                             </view>
                         </view>
+                        <!-- 第三级属性 -->
                         <view class="prop" v-if="prop3.length != 0">
                             <view class="pop-prop-name" >{{prop3[0].prop_name}}</view>
                             <view class="pop-prop-list">
-                                <uni-tag :text="item.spec_name" v-for="(item, i) in prop3_visit" :key="i" @click="select(item)"></uni-tag>
+                                <uni-tag :class="item.spec_id == active3 ? 'active' : ''" :text="item.spec_name" v-for="(item, i) in prop3_visit" :key="i" @click="select(item)"></uni-tag>
                             </view>
                         </view>
                     </view>
@@ -54,10 +56,10 @@
     	</view>
     
     
-    <view v-if="goods_info.good.sku_name">
+    <view v-if="goods_info.goods_name">
         <!-- 轮播图区域-->
         <swiper :indicator-dots="true" :autoplay="true" :interval="3000" :duration="1000" :circular="true">
-            <swiper-item v-for="(item, i) in goods_info.imgs" :key="i">
+            <swiper-item v-for="(item, i) in goods_imgs" :key="i">
                 <image :src="item.img_src" @click="preview(i)"></image>
             </swiper-item>
         </swiper>
@@ -67,11 +69,11 @@
             <!-- 商品信息区域 -->
             <view class="goods-info-box">
               <!-- 商品价格 -->
-              <view class="price">￥{{goods_info.good.min_price}}起</view>
+              <view class="price">￥{{goods_info.price}}起</view>
               <!-- 信息主体区域 -->
               <view class="goods-info-body">
                 <!-- 商品名称 -->
-                <view class="goods-name">{{goods_info.good.sku_name}}</view>
+                <view class="goods-name">{{goods_info.goods_name}}</view>
                 <!-- 收藏 TODO: 待实现功能 -->
                 <view class="favi">
                   <uni-icons type="star" size="18" color="gray"></uni-icons>
@@ -108,6 +110,8 @@
 
 <script>
     import {mapState} from 'vuex'
+    import { mapMutations } from 'vuex'
+    import { mapGetters } from 'vuex'
     
     export default {
         data() {
@@ -118,18 +122,28 @@
                 test: {},
                 pop_image_src: {},
                 goods_specs: {},
+                goods_imgs: {},
                 prop1: [],
+                prop1_name: '',
                 prop2: [],
+                prop2_name: '',
                 prop3: [],
+                prop3_name: '',
                 active1: {},
+                active1_name: '',
                 active2: {},
+                active2_name: '',
                 active3: {},
+                active3_name: '',
                 // 规格有关信息的map
                 spec_info: {},
+                spec_str: {},
+                spec_id: '',
                 
                 spec_price: 0,
                 spec_img: '',
                 good_num: 1,
+                goods: {},
                 
                 // 左侧按钮组的配置对象
                     options: [{
@@ -138,7 +152,7 @@
                     }, {
                       icon: 'cart',
                       text: '购物车',
-                      info: 2
+                      info: 0
                     }],
                     // 右侧按钮组的配置对象
                     buttonGroup: [{
@@ -164,14 +178,20 @@
         },
         
         methods: {
+            // 把 m_cart 模块中的 addToCart 方法映射到当前页面使用
+            ...mapMutations('m_cart', ['addToCart']),
+            
             async getGoodsDetail(goods_id) {
                 const { data: res } = await uni.$http.get('/api/good/detail/' + goods_id)
                 if (res.status !== 200) return uni.$showMsg()
                 // 为 data 中的数据赋值
-                this.goods_info = res.message
+                this.goods_info = res.message.good
                 this.goods_specs = res.message.specs
-                this.goods_intro = this.goods_info.intro
-                this.pop_image_src = this.goods_info.imgs
+                this.goods_intro = res.message.intro
+                this.goods_imgs = res.message.imgs
+                this.pop_image_src = res.message.imgs
+                this.spec_info = res.message.specs_info
+                
                 
                 this.active1 = 0
                 this.active2 = 0
@@ -183,33 +203,38 @@
             },
             
             getPropInfo() {
-                if (this.goods_info.good.prop1_id != null) {
+                if (this.goods_info.prop1_id != null) {
                     this.prop1 = this.goods_specs.filter((item) => {
-                        return item.prop_id == this.goods_info.good.prop1_id
+                        return item.prop_id == this.goods_info.prop1_id
                     })
+                    this.prop1_name = this.prop1[0].prop_name
                     this.active1 = this.prop1[1].spec_id
+                    this.active1_name = this.prop1[1].spec_name
                 }
                 
-                if (this.goods_info.good.prop2_id != null) {
+                if (this.goods_info.prop2_id != null) {
                     this.prop2 = this.goods_specs.filter((item) => {
-                        return item.prop_id == this.goods_info.good.prop2_id
+                        return item.prop_id == this.goods_info.prop2_id
                     })
+                    this.prop2_name = this.prop2[0].prop_name
                     this.active2 = this.prop2[1].spec_id
+                    this.active2_name = this.prop2[1].spec_name
                 }
                 
-                if (this.goods_info.good.prop3_id != null) {
+                if (this.goods_info.prop3_id != null) {
                     this.prop3 = this.goods_specs.filter((item) => {
-                        return item.prop_id == this.goods_info.good.prop3_id
+                        return item.prop_id == this.goods_info.prop3_id
                     })
+                    this.prop3_name = this.prop3[0].prop_name
                     this.active3 = this.prop3[1].spec_id
+                    this.active3_name = this.prop3[1].spec_name
                 }
-                
             },
             
             getSpecInfo() {
                 let spec_map = new Map()
                 
-                this.goods_info.specs_info.forEach(item => {
+                this.spec_info.forEach(item => {
                     console.log(item)
                     spec_map.set(item.prop_spec_id, {img_src: item.img_src, price: item.price})
                 })
@@ -219,7 +244,7 @@
             preview(i) {
                 uni.previewImage({
                     current: i,
-                    urls: this.goods_info.imgs.map(x => x.img_src)
+                    urls: this.goods_imgs.map(x => x.img_src)
                 })
             },
             
@@ -250,27 +275,60 @@
                 this.open()
             },
             
+            getChosenSpecInfo(goods) {
+                this.$set(goods.specs, this.prop1_name, this.active1_name)
+            
+                if (this.active2 !== 0) {
+                    this.$set(goods.specs, this.prop2_name, this.active2_name)
+                    if (this.active3 !== 0) {
+                        this.$set(goods.specs, this.prop3_name, this.active3_name)
+                    }
+                }
+            },
+            
             popButtonClick(e) {
-                //TODO: 添加到购物车
+                if (e.content.text === '加入购物车') {
+                    // 组织商品的信息对象
+                    let goods = {
+                        goods_id: this.goods_info.goods_id,
+                        goods_name: this.goods_info.goods_name,
+                        price: this.spec_price,
+                        goods_count: this.good_num,
+                        goods_small_logo: this.goods_info.goods_small_logo,
+                        goods_state: true,
+                        spec_id: this.spec_id,
+                        specs: {}
+                    }
+                    
+                    this.getChosenSpecInfo(goods)
+                    // TODO: 
+                    // 1.购物数是否要归1？
+                    console.log(goods)
+                    this.addToCart(goods)
+                    uni.$showMsg('商品添加成功！')
+                }
             },
             
             changePriceAndImg() {
-                let tmpId = this.getSpecPropId().join("1").slice(1)
-                this.spec_price = this.spec_info.get(tmpId).price
+                this.spec_id = this.getSpecPropId().join("1").slice(1)
+                this.spec_price = this.spec_info.get(this.spec_id).price
                 // TODO: 增加图片更改功能
-                // spec_img
+                // spec_img                
             },
             
             select(item) {
-                if (item.prop_id == this.goods_info.good.prop1_id) {
+                if (item.prop_id == this.goods_info.prop1_id) {
                     this.active1 = item.spec_id
+                    this.active1_name = item.spec_name
                     this.changeActive2()
                     this.changeActive3()
-                } else if (item.prop_id == this.goods_info.good.prop2_id) {
+                } else if (item.prop_id == this.goods_info.prop2_id) {
                     this.active2 = item.spec_id
+                    this.active2_name = item.spec_name
                     this.changeActive3()
                 } else {
                     this.active3 = item.spec_id
+                    this.active3 = item.spec_name
                 }
                 
                 // 更改图片和价格
@@ -304,30 +362,32 @@
             
             // 如果prop2_visit中仍包含当前的active1，就没必要改变，否则就要改变active2
             changeActive2() {
-                console.log("active1: " + this.active1)
-                console.log("active2: " + this.active2)                
-                console.log(this.prop2_visit)
-                
                 if (this.prop2 == 0 || this.prop2_visit.length == 0) {
                     this.active2 = 0
+                    this.active2_name = ''
                 } else if (this.prop2_visit.findIndex(
                     item => item.spec_id == this.active2) !== 0) 
                 {
                     this.active2 = this.prop2_visit[0].spec_id
+                    this.active2_name = this.prop2_visit[0].spec_name
                 }
-                
-                console.log(this.active2)
             },
             
             changeActive3() {
                 if (this.prop3 == 0 || this.prop3_visit.length == 0) {
                     this.active3 = 0
+                    this.active3_name = ''
                 } else if (this.prop3_visit().findIndex(
                     item => item.spec_id == this.active3) !== 0) 
                 {
                     this.active3 = this.prop3_visit[0].spec_id
+                    this.active3_name = this.prop3_visit[0].spec_name
                 }
             },
+            
+            popChange(e) {
+                this.show = e.show
+            }
             
         },
         
@@ -335,6 +395,7 @@
             // 调用 mapState 方法，把 m_cart 模块中的 cart 数组映射到当前页面中，作为计算属性来使用
             // ...mapState('模块的名称', ['要映射的数据名称1', '要映射的数据名称2'])
             ...mapState('m_cart', ['cart']),
+            ...mapGetters('m_cart', ['total']),
             
             prop2_visit() {
                 return this.prop2.slice(1).filter((item) => {
@@ -349,7 +410,24 @@
                         return item.visible.findIndex(item => item === this.active2) == 0
                 })
             }
-        }
+        },
+        
+        watch: {
+            // 1. 监听 total 值的变化，通过第一个形参得到变化后的新值
+            total: {
+                // handler 属性用来定义侦听器的 function 处理函数
+                handler(newVal) {
+                    // 2. 通过数组的 find() 方法，找到购物车按钮的配置对象
+                    const findResult = this.options.find((x) => x.text === '购物车')   
+                    if (findResult) {
+                      // 3. 动态为购物车按钮的 info 属性赋值
+                      findResult.info = newVal
+                    }
+                },
+                // immediate 属性用来声明此侦听器，是否在页面初次加载完毕后立即调用
+                immediate: true
+            }
+        },
     }
 </script>
 
@@ -499,7 +577,7 @@
         .pop-num {
             display: flex;
             padding-top: 5px;
-            padding-bottom: 5px;
+            padding-bottom: 8px;
             
             .pop-num-text {
                 flex: 1;
@@ -528,7 +606,7 @@
                     display: flex;
                     flex-wrap: wrap;
                     margin-top: 8px;
-                    padding-bottom: 10px;
+                    padding-bottom: 15px;
                     padding-left: 5px ;
                  
                     .uni-tag {
@@ -536,6 +614,10 @@
                         color: black;
                         background-color: #f4f4f4;
                         margin-right: 5px;
+                    }
+                    
+                    .active text {
+                        color: #c00000;
                     }
                 }
             }
