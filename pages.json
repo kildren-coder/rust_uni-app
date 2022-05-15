@@ -56,6 +56,15 @@
                         "backgroundColor" : "#F8F8F8"
                     }
                 }
+                ,{
+                    "path" : "create_user/create_user",
+                    "style" :                                                                                    
+                {
+                    "navigationBarTitleText": "",
+                    "enablePullDownRefresh": false
+                }
+                
+                }
             ]
         }
     ],
